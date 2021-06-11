@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import User, NewUserPhoneVerification,UserProfile,Referral
+from .models import *
 from . import utils
 
 class UserSerializer(serializers.ModelSerializer):
@@ -69,4 +69,105 @@ class SendNewPhonenumberSerializer(serializers.ModelSerializer):
         extra_kwargs = {'phone_number': {'write_only': True, 'required':True}, 'email': {'write_only': True}, }
         read_only_fields = ('id', 'verification_code')
         
-    
+
+class WithdrawalSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Transaction
+        fields = ('id', 'owner', 'reference', 'status', 'amount', 'new_balance')
+        read_only_fields = ('owner', 'status', 'new_balance')
+
+    def create(self, validated_data):
+        owner = validated_data.get('owner')
+        amount = validated_data.get('amount')
+        owner_balance = owner.balance.first()
+        if amount > owner_balance:
+            raise serializers.ValidationError('Insufficient Funds')
+        new_balance = owner_balance - amount
+        owner_balance.book_balance = new_balance
+        owner_balance.available_balance = new_balance
+        owner_balance.save()
+
+        validated_data['new_balance'] = new_balance
+        validated_data['amount'] = amount
+        validated_data['bank'] = owner.accounts.first()
+        validated_data['status'] = 'Successful' 
+
+        bank_transfer = BankTransfer.objects.create(**validated_data)
+
+        return bank_transfer 
+
+
+class DepositSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Transaction
+        fields = ('id', 'owner', 'reference', 'status', 'amount', 'new_balance')
+        read_only_fields = ('owner', 'status', 'new_balance')
+
+    def create(self, validated_data):
+        owner = validated_data.get('owner')
+        amount = validated_data.get('amount')
+        owner_balance = owner.balance.first()
+        new_balance = owner_balance + amount
+        owner_balance.book_balance = new_balance
+        owner_balance.available_balance = new_balance
+        owner_balance.save()
+
+        validated_data['new_balance'] = new_balance
+        validated_data['amount'] = amount
+        validated_data['bank'] = owner.accounts.first()
+        validated_data['status'] = 'Successful' 
+
+        bank_transfer = BankTransfer.objects.create(**validated_data)
+
+        return bank_transfer
+
+
+class P2PTransferSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = P2PTransfer
+        fields = ('id', 'owner', 'refernce', 'status', 'amount', 'new_balance', 'sender', 'recipient')
+        read_only_fields = ('owner', 'status', 'new_balance', 'sender', 'recipient')
+
+    def create(self, validated_data):
+        owner = validated_data.get('owner')
+        sender = validated_data.get('sender')
+        receipient = validated_data.get('receipient')
+        amount = validated_data.get('amount')
+        sender_balance = sender.balance.first()
+        receipient_balance = receipient.balance.first()
+        new_sender_balance = sender_balance.available_balance - amount
+        new_receipient_balance = receipient_balance.available_balance + amount 
+        sender_balance.book_balance = new_sender_balance
+        receipient_balance.book_balance = new_receipient_balance
+        sender_balance.available_balance = new_sender_balance
+        receipient_balance.available_balance = new_receipient_balance
+        sender_balance.save()
+        receipient_balance.save()
+
+        validated_data['new_balance'] = new_sender_balance
+        validated_data['amount'] = amount
+        validated_data['status'] = 'Successful'
+
+
+        P2P_transfer = P2PTransfer.objects.create(**validated_data)
+
+        return P2P_transfer
+
+
+class BalanceSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Balance
+        fields = ('id', 'owner', 'book_balance', 'available_balance')
+        read_only_fields = ('id', 'owner', 'book_balance', 'available_balance')
+
+
+class TransactionSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Transaction
+        fields = ('id', 'owner', 'reference', 'status', 'amount', 'new_balance')
+        read_only_fields = ('owner','status', 'new_balance')

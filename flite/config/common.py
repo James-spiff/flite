@@ -47,7 +47,7 @@ class Common(Configuration):
 
     ALLOWED_HOSTS = ["*"]
     ROOT_URLCONF = 'flite.urls'
-    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY')
+    SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', "flite.settings.local")
     WSGI_APPLICATION = 'flite.wsgi.application'
 
     # Email
